@@ -270,7 +270,7 @@ select.text-in{padding:11px 10px}
       <div class="card">
         <h2>Your money</h2>
         <div class="stats">
-          <div class="stat"><span class="label">Cash in wallet</span><b id="h-wallet">0</b><button class="link-btn" id="count-btn" style="margin-top:8px">Count cash</button></div>
+          <div class="stat"><span class="label">Cash in wallet</span><b id="h-wallet">0</b><div class="row" style="margin-top:8px;gap:6px"><button class="link-btn" id="count-btn">Count cash</button><button class="link-btn" id="see-atm">Withdrawals</button></div></div>
           <div class="stat"><span class="label">Invested</span><b id="h-invested">0</b><small id="h-invprofit"></small></div>
           <div class="stat"><span class="label">Others owe you</span><b id="h-owed">0</b></div>
           <div class="stat"><span class="label">You owe</span><b id="h-owe">0</b></div>
@@ -285,7 +285,7 @@ select.text-in{padding:11px 10px}
         </div>
       </div>
       <div class="card">
-        <h2>Recent activity <small>Tap to edit</small></h2>
+        <h2>Recent activity <button class="link-btn" id="see-all">See all</button></h2>
         <div id="h-recent"></div>
       </div>
     </section>
@@ -348,6 +348,15 @@ select.text-in{padding:11px 10px}
       <div class="card"><h2>You borrowed <button class="link-btn" data-newloan="borrowed">+ Add</button></h2><div id="l-borrowed"></div></div>
       <div class="card" id="l-closed-card" hidden><h2>Settled</h2><div id="l-closed"></div></div>
       <div><div id="l-tx"></div></div>
+    </section>
+
+    <!-- ALL ACTIVITY -->
+    <section class="view" id="view-all" hidden>
+      <div class="card">
+        <div class="pick" id="all-filter"></div>
+        <p class="hint" id="all-sum"></p>
+      </div>
+      <div><div id="all-list"></div></div>
     </section>
 
     <!-- MONTHLY REPORT -->
@@ -599,7 +608,7 @@ const KIND={lent:{label:"I lent money",nameL:"Who did you lend to?",ph:"Person's
             bank:{label:"Bank loan (EMI)",nameL:"Bank or loan name",ph:"e.g. City Bank car loan"}};
 const PAL=["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)","var(--c9)"];
 const K_ENT="dx.entries.v1", K_SET="dx.settings.v1", K_PAY="dx.pay";
-const TITLES={home:"Home",exp:"Expenses",inc:"Income",inv:"Investments",loan:"Loans",settings:"Settings",report:"Monthly report"};
+const TITLES={home:"Home",exp:"Expenses",inc:"Income",inv:"Investments",loan:"Loans",settings:"Settings",report:"Monthly report",all:"All activity"};
 
 // ================= storage =================
 let storageOK=true;
@@ -912,10 +921,11 @@ function renderAll(){
   $("hdr-sub").textContent= storageOK? "Daily Expenses" : "Not saving: storage blocked";
   document.querySelectorAll(".rep-month-name").forEach(x=>x.textContent=monthLabel(curMonth,true));
   if(view==="report") renderReport();
+  if(view==="all") renderAllList();
   if(view==="home") renderHome(); if(view==="exp") renderExp(); if(view==="inc") renderInc(); if(view==="inv") renderInv(); if(view==="loan") renderLoan();
 }
 function show(v){
-  view=v; ["home","exp","inc","inv","loan","settings","report"].forEach(n=>$("view-"+n).hidden=n!==v);
+  view=v; ["home","exp","inc","inv","loan","settings","report","all"].forEach(n=>$("view-"+n).hidden=n!==v);
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===v?"true":"false"));
   $("fab").hidden= v==="settings"||v==="report";
   if(v==="settings"){ draft=null; renderSettings(); }
@@ -1436,6 +1446,21 @@ function renderReport(){
   box.appendChild(card("All transactions ("+all.length+")", all.length? tbl(["Date","Description","Paid with","In","Out"],all.map(e=>{ const i=moneyIn(e); return [e.date.slice(8)+" "+monShort(m),txDesc(e)+(e.note?" · "+e.note:""),e.paidWith||"",i?fmt(e.amount):"",i?"":fmt(e.amount)]; }),[3,4]) : el("p","hint","Nothing recorded.")));
 }
 $("open-report").addEventListener("click",()=>show("report"));
+// ---- all activity ----
+const FILTERS=[["all","All"],["exp","Expenses"],["inc","Income"],["atm","Cash withdrawals"],["loan","Loans"],["inv","Invest"]];
+let allFilter="all";
+function matchFilter(e){ if(allFilter==="all") return true; if(allFilter==="inv") return e.type==="inv"||(e.type==="inc"&&e.invId); if(allFilter==="inc") return e.type==="inc"&&!e.invId; return e.type===allFilter; }
+function renderAllList(){
+  const fb=$("all-filter"); fb.innerHTML="";
+  FILTERS.forEach(([k,l])=>{ const n=inMonth(curMonth).filter(e=>{ const f=allFilter; allFilter=k; const r=matchFilter(e); allFilter=f; return r; }).length;
+    const b=el("button","chip",l+" ("+n+")"); b.type="button"; b.setAttribute("aria-pressed",allFilter===k?"true":"false"); b.addEventListener("click",()=>{ allFilter=k; renderAllList(); }); fb.appendChild(b); });
+  const list=inMonth(curMonth).filter(matchFilter);
+  const inn=sum(list.filter(moneyIn)), out=sum(list.filter(e=>!moneyIn(e)));
+  $("all-sum").textContent=list.length? "Money in "+fmt(inn)+" · money out "+fmt(out)+". Tap any entry to edit or delete it." : "";
+  dayList($("all-list"),list,"Nothing here in "+monthLabel(curMonth,true)+".",false);
+}
+$("see-all").addEventListener("click",()=>{ allFilter="all"; show("all"); });
+$("see-atm").addEventListener("click",()=>{ allFilter="atm"; show("all"); });
 $("open-report2").addEventListener("click",()=>show("report"));
 $("rep-pdf").addEventListener("click",()=>{
   const title="Monthly report "+monthLabel(curMonth,true);
@@ -1559,7 +1584,7 @@ $("s-next").addEventListener("click",()=>{
 window.handleBack=function(){
   if(!$("setup").hidden){ if(step>1){ goStep(step-1); return true; } return false; }
   if(!$("sheet").hidden||!$("sheet2").hidden){ closeSheet(); return true; }
-  if(view==="report"){ show("home"); return true; }
+  if(view==="report"||view==="all"){ show("home"); return true; }
   if(view!=="home"){ show("home"); return true; }
   return false;
 };
