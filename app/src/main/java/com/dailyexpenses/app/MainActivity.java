@@ -6,6 +6,10 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.util.Base64;
 import android.provider.MediaStore;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -106,21 +110,40 @@ public class MainActivity extends Activity {
     public class Bridge {
         @JavascriptInterface
         public void shareFile(final String name, final String content) {
-            runOnUiThread(() -> shareCsv(name, content));
+            runOnUiThread(() -> saveAndShare(name, "text/csv", content.getBytes(StandardCharsets.UTF_8)));
+        }
+
+        @JavascriptInterface
+        public void shareBase64(final String name, final String mime, final String base64) {
+            final byte[] data = Base64.decode(base64, Base64.DEFAULT);
+            runOnUiThread(() -> saveAndShare(name, mime, data));
+        }
+
+        @JavascriptInterface
+        public void printPage(final String title) {
+            runOnUiThread(() -> {
+                try {
+                    PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+                    PrintDocumentAdapter adapter = web.createPrintDocumentAdapter(title);
+                    pm.print(title, adapter, new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Could not open printing: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
 
-    private void shareCsv(String name, String content) {
+    private void saveAndShare(String name, String mime, byte[] bytes) {
         try {
             Uri uri = null;
             if (Build.VERSION.SDK_INT >= 29) {
                 ContentValues cv = new ContentValues();
                 cv.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-                cv.put(MediaStore.MediaColumns.MIME_TYPE, "text/csv");
+                cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
                 uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                 if (uri != null) {
                     try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-                        if (os != null) os.write(content.getBytes(StandardCharsets.UTF_8));
+                        if (os != null) os.write(bytes);
                     }
                     Toast.makeText(this, "Saved " + name + " to Downloads", Toast.LENGTH_SHORT).show();
                 }
@@ -128,14 +151,14 @@ public class MainActivity extends Activity {
             Intent send = new Intent(Intent.ACTION_SEND);
             send.putExtra(Intent.EXTRA_SUBJECT, name);
             if (uri != null) {
-                send.setType("text/csv");
+                send.setType(mime);
                 send.putExtra(Intent.EXTRA_STREAM, uri);
                 send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             } else {
                 send.setType("text/plain");
-                send.putExtra(Intent.EXTRA_TEXT, content);
+                send.putExtra(Intent.EXTRA_TEXT, mime.startsWith("text/") ? new String(bytes, StandardCharsets.UTF_8) : "Your Android version cannot save this file here. Please update Android or export a backup instead.");
             }
-            startActivity(Intent.createChooser(send, "Save or send your backup"));
+            startActivity(Intent.createChooser(send, "Save or send " + name));
         } catch (Exception e) {
             Toast.makeText(this, "Could not export: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }

@@ -9,7 +9,10 @@ A simple, offline money diary for Android. Anyone can set it up for their own li
 - **Loans:** money you lent, money you borrowed, and bank loans with EMI, each with the balance left.
 - **Investments:** FDR, DPS, savings certificates, shares, gold, land and more. Money invested isn't counted as spending; profit is counted as income.
 - **Repeat monthly** for salary, rent, EMI, DPS and monthly profit.
-- **CSV backup and restore**, which opens in Excel or Google Sheets.
+- **Home dashboard** with this month's savings, a spending pie chart, a 6-month trend, wallet, investments and loans.
+- **Separate pages with charts** for Expenses, Income, Investments and Loans. Tap any entry to edit or delete it.
+- **Excel report** (formatted workbook: summary, transactions, categories, income, loans, investments) and a **Monthly report** you can save as PDF or Excel.
+- **Backup and restore** with a CSV file.
 
 All data stays on the phone. There is no account and no internet connection is needed.
 
